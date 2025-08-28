@@ -759,3 +759,140 @@ def plot_model_predictRNN(model, seq_length, spike_count_matrix, angles, times, 
 
 
 
+def plot_model_predictSARNN(model, seq_length, cochains, angles, times, test_stop_idx, L0, L1_d, L1_u, L2, B1, B2):
+    '''
+    Inputs:
+        model:         SARNN that has been trained
+        seq_length:    how many time bins are used for individual inputs into network
+        cochains:      list of cochain tensors for each dimension
+        angles:        ground truth HD angles
+        times:         times (in seconds) of HD recordings
+        test_stop_idx: index for slicing test data and training data from total data
+        L0:            0-Laplacian tensor
+        L1_d:          Lower 1-Laplacian tensor
+        L1_u:          Upper 1-Laplacian tensor
+        L2:            2-Laplacian tensor
+        B1:            Boundary matrix from 1-simplices to 0-simplices
+        B2:            Boundary matrix from 2-simplices to 1-simplices
+    '''
+    n_times = int(angles.size - seq_length + 1)
+    test_stop_idx -= seq_length
+    times = times[seq_length-1:]
+
+    model.eval()
+    predict = []
+    for k in range(n_times):
+        cochains_tmp = [
+            torch.tensor(cochains[0][..., k:k+seq_length].T, device=model.device).unsqueeze(0),  # z0
+            torch.tensor(cochains[1][..., k:k+seq_length].T, device=model.device).unsqueeze(0),  # z1
+            torch.tensor(cochains[2][..., k:k+seq_length].T, device=model.device).unsqueeze(0),  # z2
+            L0, L1_d, L1_u, L2, B1, B2
+        ]
+        predict.append(model(cochains_tmp).detach().cpu().numpy().squeeze())
+    
+    angles = np.degrees(angles[seq_length-1:])
+    predict = np.degrees(np.array(predict))
+    times = times - times[0]
+
+    SARNNerror = np.abs(predict - angles)
+    SARNNerror[SARNNerror > 180.0] = np.abs(360 - SARNNerror[SARNNerror > 180.0])
+    
+    SARNNcata = np.argwhere(SARNNerror > 90)
+    print('SARNN Catastrophic:', SARNNcata.size)
+
+    train_MAE, train_AAE = train.MAE(predict[test_stop_idx:], angles[test_stop_idx:])
+    print('train MAE:', train_MAE)
+    print('train AAE:', train_AAE)
+
+    test_MAE, test_AAE = train.MAE(predict[:test_stop_idx], angles[:test_stop_idx])
+    print('test MAE:', test_MAE)
+    print('test AAE:', test_AAE)
+
+    total_MAE, total_AAE = train.MAE(predict, angles)
+    print('total MAE:', total_MAE)
+    print('total AAE:', total_AAE)
+
+    indx = []
+    for i in range(n_times - 1):
+        diff = np.abs(angles[i] - angles[i+1])
+        if diff > 300:
+            indx.append(i)
+
+    plt.figure(figsize=(12,5))
+    if len(indx) > 0:
+        plt.plot(times[:indx[0]], angles[:indx[0]], linewidth=1.5, color='blue', label='true')
+        plt.plot(times[:indx[0]], predict[:indx[0]], linewidth=1.5, color='red', label='decoded')
+        for k in range(len(indx)-1):
+            plt.plot(times[indx[k]+1:indx[k+1]], angles[indx[k]+1:indx[k+1]], linewidth=1.5, color='blue')
+            plt.plot(times[indx[k]+1:indx[k+1]], predict[indx[k]+1:indx[k+1]], linewidth=1.5, color='red')
+    else:
+        plt.plot(times, angles, linewidth=1.5, color='blue', label='true')
+        plt.plot(times, predict, linewidth=1.5, color='red', label='decoded')
+
+    plt.xlabel('Time (seconds)', fontsize=14)
+    plt.ylabel('Angle', fontsize=14)
+    plt.title('SARNN Decoded Head Angle', fontsize=16)
+    plt.legend()
+    
+    now = str(datetime.now())
+    dt = str(now[:10] + '_' + str(now[11:]))
+    print('time stamp:', dt)
+    
+    plt.margins(0,0)
+    plt.savefig(os.path.join(sys.path[0], "plots/SARNNmodel_approx.pdf"))
+    plt.close()
+
+    predict_file = os.path.join(sys.path[0], "extracted/SARNNmodel_prediction")
+    np.savetxt(predict_file + ".txt", predict, fmt='%1.18f', delimiter=',')
+
+    end_time = 1200
+    indx = []
+    for i in range(end_time - 1):
+        diff = np.abs(angles[i] - angles[i+1])
+        if diff > 300:
+            indx.append(i)
+
+    plt.figure(figsize=(12,5))
+    if len(indx) > 0:
+        plt.plot(times[:indx[0]], angles[:indx[0]], linewidth=1.5, color='blue', label='true')
+        plt.plot(times[:indx[0]], predict[:indx[0]], linewidth=1.5, color='red', label='decoded')
+        for k in range(len(indx)-1):
+            plt.plot(times[indx[k]+1:indx[k+1]], angles[indx[k]+1:indx[k+1]], linewidth=1.5, color='blue')
+            plt.plot(times[indx[k]+1:indx[k+1]], predict[indx[k]+1:indx[k+1]], linewidth=1.5, color='red')
+    else:
+        plt.plot(times[:end_time], angles[:end_time], linewidth=1.5, color='blue', label='true')
+        plt.plot(times[:end_time], predict[:end_time], linewidth=1.5, color='red', label='decoded')
+
+    plt.xlabel('Time (seconds)', fontsize=14)
+    plt.ylabel('Angle', fontsize=14)
+    plt.title('SARNN Decoded Head Angle', fontsize=16)
+    plt.legend()
+    
+    plt.margins(0,0)
+    plt.savefig(os.path.join(sys.path[0], "plots/SARNNmodel_approx_first_minute.pdf"))
+    plt.close()
+
+    plt.figure(figsize=(12,5))
+    plt.plot(times, SARNNerror, linewidth=1.5, color='red', label='SARNN')
+    plt.xlabel('Time (seconds)', fontsize=14)
+    plt.ylabel('Angle', fontsize=14)
+    plt.title('Absolute Error Decoded Head Angle', fontsize=16)
+    plt.margins(0,0)
+    plt.savefig(os.path.join(sys.path[0], "plots/SARNNerrorplot.pdf"))
+    plt.close()
+
+    MAE_file = open(os.path.join(sys.path[0], "extracted/SARNNtrainMAE.txt"), "w")
+    MAE_file.write(str(train_MAE))
+    MAE_file.close()
+
+    AAE_file = open(os.path.join(sys.path[0], "extracted/SARNNtrainAAE.txt"), "w")
+    AAE_file.write(str(train_AAE))
+    AAE_file.close()
+
+    MAE_file = open(os.path.join(sys.path[0], "extracted/SARNNtestMAE.txt"), "w")
+    MAE_file.write(str(test_MAE))
+    MAE_file.close()
+
+    AAE_file = open(os.path.join(sys.path[0], "extracted/SARNNtestAAE.txt"), "w")
+    AAE_file.write(str(test_AAE))
+    AAE_file.close()

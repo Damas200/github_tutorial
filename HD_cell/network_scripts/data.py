@@ -373,6 +373,50 @@ class DatasetRNN(torch.utils.data.Dataset):
 
 		return idx, sample, label
 
+# builds dataset used for training SARNN
+class DatasetSARNN(torch.utils.data.Dataset):
+    '''
+    Inputs:
+        device:          device that model and data is using for computing
+        cochains:        list of cochain tensors (each entry corresponds to a different simplicial dimension)
+        labels:          vector of ground truth HD angles
+        sequence_length: length of sequence to be included in SARNN portion
+        L0:              0-Laplacian tensor
+        L1_d:            Lower 1-Laplacian tensor
+        L1_u:            Upper 1-Laplacian tensor
+        L2:              2-Laplacian tensor
+        B1:              Boundary matrix from 1-simplices to 0-simplices
+        B2:              Boundary matrix from 2-simplices to 1-simplices
+
+    Returns:
+        idx:    index of input/output
+        sample: input for SARNN (cochains and topological operators)
+        label:  ground truth label used for computing loss
+    '''
+    def __init__(self, device, cochains, labels, sequence_length, L0, L1_d, L1_u, L2, B1, B2):
+        self.device = device
+        self.cochains = cochains
+        self.labels = labels
+        self.seq_length = sequence_length
+        self.L0 = L0
+        self.L1_d = L1_d
+        self.L1_u = L1_u
+        self.L2 = L2
+        self.B1 = B1
+        self.B2 = B2
+
+    def __len__(self):
+        return int(len(self.labels)) - self.seq_length + 1
+
+    def __getitem__(self, idx):
+        sample = [
+            torch.tensor(self.cochains[0][..., idx:idx+self.seq_length].T, device=self.device),  # z0
+            torch.tensor(self.cochains[1][..., idx:idx+self.seq_length].T, device=self.device),  # z1
+            torch.tensor(self.cochains[2][..., idx:idx+self.seq_length].T, device=self.device),  # z2
+            self.L0, self.L1_d, self.L1_u, self.L2, self.B1, self.B2
+        ]
+        label = torch.tensor(self.labels[idx+self.seq_length-1], dtype=torch.float32).squeeze()
+        return idx, sample, label
 
 
 
