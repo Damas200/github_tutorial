@@ -196,11 +196,11 @@ The consumer processes streaming data and inserts validated records into Postgre
 
 ![Dashboard Overview](screenshots/dashboard_overview.png)
 
----
+
 
 ![Dashboard Analytics](screenshots/dashboard_analytics.png)
 
----
+
 
 ![Dashboard Time Series](screenshots/dashboard_timeseries.png)
 
@@ -277,5 +277,6 @@ This demonstrates production-style monitoring and observability design.
 This project successfully implements a real-time customer heartbeat monitoring system from data simulation to visualization.
 
 The system demonstrates modern data engineering architecture and streaming analytics concepts suitable for production environments.
+
 
 
