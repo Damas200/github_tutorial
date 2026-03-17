@@ -1,282 +1,313 @@
-# Real-Time Customer Heartbeat Monitoring System
+#  Mini Data Platform
 
-##  Project Overview
+##  Overview
 
-This project implements a real-time data engineering pipeline that simulates, streams, processes, stores, and visualizes customer heart rate data.
+This project implements a **Mini End-to-End Data Platform** using modern data engineering tools.
 
-The system demonstrates core modern data engineering concepts including:
+It demonstrates how data flows from **raw ingestion → processing → storage → visualization**.
 
-- Real-time data simulation
-- Apache Kafka streaming
-- Stream processing with consumers
-- PostgreSQL time-series storage
-- Data validation and anomaly detection
-- Real-time dashboard visualization using Streamlit
-
-This project simulates a production-grade streaming analytics system.
+The platform processes **sales data from CSV files**, transforms it using ETL pipelines, stores it in a data warehouse, and visualizes insights through dashboards.
 
 ---
 
-# System Architecture
+##  Tech Stack
 
-##  Data Flow
-
-Synthetic Data Generator  
-        ⬇  
-Kafka Producer  
-        ⬇  
-Kafka Topic (`customer-heartbeat`)  
-        ⬇  
-Kafka Consumer  
-        ⬇  
-PostgreSQL (`customer_heartbeats`)  
-        ⬇  
-Streamlit Dashboard  
+*  **MinIO** → Object storage (S3-like)
+*  **Apache Airflow** → Workflow orchestration (ETL)
+*  **PostgreSQL** → Data warehouse
+*  **Metabase** → Data visualization
+*  **Docker** → Containerization
+* **Python (Pandas, SQLAlchemy)** → Data processing
 
 ---
 
-##  Architecture Diagram
-
-![Architecture Diagram](screenshots/architecture_diagram.png)
-
----
-
-# Technology Stack
-
-- **Python 3.12**
-- **Apache Kafka**
-- **Zookeeper**
-- **PostgreSQL 15**
-- **Docker & Docker Compose**
-- **Streamlit**
-- **Plotly**
-- **psycopg2**
-
----
-
-#  System Setup Instructions
-
-## 1️. Start Infrastructure
-
-```bash
-docker compose up -d
-````
-
-Verify containers:
-
-```bash
-docker ps
-```
-
----
-
-## 2️. Run Data Producer
-
-```bash
-python customer_heartbeat_generator.py
-```
-
-This continuously generates synthetic heart rate data.
-
----
-
-## 3️. Run Kafka Consumer
-
-```bash
-python heartbeat_consumer.py
-```
-
-The consumer:
-
-* Reads Kafka messages
-* Validates data
-* Detects anomalies
-* Inserts records into PostgreSQL
-
----
-
-## 4️. Run Dashboard
-
-```bash
-streamlit run streamlit_dashboard.py
-```
-
-Open browser:
+#  Architecture
 
 ```
-http://localhost:8501
+        +----------------------+
+        |  Data Generator      |
+        | (generate_sample_data.py)
+        +-----------+----------+
+                    |
+                    v
+              +-----------+
+              |   MinIO   |
+              | CSV Store |
+              +-----+-----+
+                    |
+                    v
+              +-----------+
+              |  Airflow  |
+              | ETL DAG   |
+              +-----+-----+
+                    |
+                    v
+             +-------------+
+             | PostgreSQL  |
+             | Data Store  |
+             +------+------+
+                    |
+                    v
+              +-----------+
+              | Metabase  |
+              | Dashboard |
+              +-----------+
 ```
-
----
-#  Database Schema
-
-Schema file: `schema.sql`
-
-Table: `customer_heartbeats`
-
----
-
-##  Table Definition
-
-```sql
-CREATE TABLE customer_heartbeats (
-    id SERIAL PRIMARY KEY,
-    customer_id VARCHAR(50) NOT NULL,
-    event_timestamp TIMESTAMPTZ NOT NULL,
-    heart_rate NUMERIC(5,2) NOT NULL,
-    is_anomaly BOOLEAN DEFAULT FALSE,
-    ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT unique_event UNIQUE (customer_id, event_timestamp)
-);
-
-CREATE INDEX idx_customer_id ON customer_heartbeats(customer_id);
-CREATE INDEX idx_event_timestamp ON customer_heartbeats(event_timestamp);
-````
-
----
-
-##  Main Columns
-
-* `id` (SERIAL) – Auto-increment primary key
-* `customer_id` (VARCHAR(50)) – Unique identifier of the customer
-* `event_timestamp` (TIMESTAMPTZ) – Timestamp when heart rate event occurred
-* `heart_rate` (NUMERIC(5,2)) – Heart rate value in beats per minute (BPM)
-* `is_anomaly` (BOOLEAN) – Indicates abnormal heart rate readings
-* `ingested_at` (TIMESTAMPTZ) – Timestamp when record was inserted
-
----
-
-##  Indexes & Constraints
-
-* Unique constraint on `(customer_id, event_timestamp)` to prevent duplicate events
-* Index on `customer_id` for faster customer-based filtering
-* Index on `event_timestamp` for optimized time-series queries
-
----
-
-##  Design Considerations
-
-* `TIMESTAMPTZ` ensures timezone-aware timestamps for distributed systems
-* `NUMERIC(5,2)` allows precise heart rate storage
-* `is_anomaly` enables efficient anomaly monitoring
-* Indexing improves dashboard performance and real-time analytics queries
 
 ---
 
 #  Screenshots
 
----
-
 ##  Docker Containers Running
 
-![Docker Running](screenshots/docker_running.png)
-
-All services (Kafka, Zookeeper, PostgreSQL) running successfully via Docker Compose.
+![Docker Containers](screenshots/docker_containers.png)
 
 ---
 
-##  Kafka Producer Output
+##  Airflow ETL Pipeline
 
-![Producer Output](screenshots/producer_output.png)
+DAG showing:
 
-The producer continuously generates and publishes synthetic heart rate events.
+```
+extract → transform → load
+```
 
----
-
-##  Kafka Consumer Output
-
-![Consumer Output](screenshots/consumer_output.png)
-
-The consumer processes streaming data and inserts validated records into PostgreSQL.
+![Airflow Pipeline](screenshots/airflow_pipeline.jpeg)
 
 ---
 
-##  Streamlit Dashboard – Real-Time Monitoring
+##  MinIO Object Storage
 
+CSV file stored in bucket:
 
-![Dashboard Overview](screenshots/dashboard_overview.png)
-
-
-
-![Dashboard Analytics](screenshots/dashboard_analytics.png)
-
-
-
-![Dashboard Time Series](screenshots/dashboard_timeseries.png)
+![MinIO Bucket](screenshots/minio_bucket.jpeg)
 
 ---
 
-#  Dashboard Interpretation & Analysis
+##  PostgreSQL Data Verification
 
-The Streamlit dashboard provides real-time observability of the entire pipeline.
+Data successfully loaded into warehouse:
 
----
-
-##  System Health Indicators
-
-* **Records Processed:** Confirms active ingestion.
-* **Consumer Lag:** Indicates Kafka-to-database delay.
-* **Data Freshness Indicator:** Validates pipeline liveness.
-
-This confirms the end-to-end streaming pipeline is functioning correctly.
+![Postgres Data](screenshots/postgres_data.png)
 
 ---
 
-##  Statistical Insights
+##  Metabase Dashboard
 
-* **P95 Heart Rate:** Represents the 95th percentile heart rate.
-* **Anomaly Rate:** Percentage of abnormal heart rate readings.
+Final analytics dashboard:
 
-This demonstrates real-time percentile analytics and anomaly monitoring.
+* Total Sales
+* Sales by Product
+* Sales by Region
+* Daily Sales Trend
 
----
-
-##  Data Quality Checks
-
-* Missing values = 0
-* Negative heart rate values = 0
-
-This confirms validation logic in the consumer is working properly.
+![Metabase Dashboard](screenshots/metabase_dashboard.png)
 
 ---
 
-##  Rolling Average Analysis
+#  Project Components
 
-The 10-event rolling window smooths short-term fluctuations while preserving trend behavior.
+## 1️. MinIO (Object Storage)
 
-Spikes represent simulated anomalies generated by the synthetic data script.
+Stores raw CSV data similar to AWS S3.
 
----
-
-##  Event Volume Over Time
-
-The volume chart confirms:
-
-* Continuous streaming behavior
-* Stable ingestion rate
-* No pipeline downtime
+* URL: [http://localhost:9001](http://localhost:9001)
+* Bucket: `sales-data`
+* File: `sales_data.csv`
 
 ---
 
-##  Interactive Features
+## 2️. Apache Airflow (ETL Orchestration)
 
-The dashboard includes:
+Manages the pipeline:
 
-* Time-window filtering (5m / 15m / 1h)
-* Customer selection
-* Adjustable anomaly thresholds
-* Auto-refresh streaming updates
-* CSV export functionality
+```
+extract → transform → load
+```
 
-This demonstrates production-style monitoring and observability design.
+* URL: [http://localhost:8080](http://localhost:8080)
+
+### Tasks:
+
+* **Extract** → Download from MinIO
+* **Transform** → Clean & validate data
+* **Load** → Insert into PostgreSQL
+
+---
+
+## 3️. PostgreSQL (Data Warehouse)
+
+Stores structured data.
+
+**Table: `sales`**
+
+| Column      | Description    |
+| ----------- | -------------- |
+| order_id    | Unique ID      |
+| customer_id | Customer       |
+| product     | Product name   |
+| amount      | Sales value    |
+| region      | Location       |
+| order_date  | Date           |
+| created_at  | Load timestamp |
+
+---
+
+## 4. Metabase (BI Dashboard)
+
+Visualizes data with interactive dashboards.
+
+* URL: [http://localhost:3000](http://localhost:3000)
+
+---
+
+#  Project Structure
+
+```
+mini-data-platform/
+│
+├── dags/
+│   └── sales_pipeline.py
+│
+├── src/
+│   ├── extract.py
+│   ├── transform.py
+│   ├── load.py
+│   ├── validation.py
+│   └── minio_client.py
+│
+├── scripts/
+│   └── generate_sample_data.py
+│
+├── data/
+│   └── sales_data.csv
+│
+├── sql/
+│   ├── init_schema.sql
+│   └── queries.sql
+│
+├── tests/
+│   └── test_transform.py
+│
+├── screenshots/
+│   ├── docker_containers.png
+│   ├── airflow_pipeline.jpeg
+│   ├── minio_bucket.jpeg
+│   ├── postgres_data.png
+│   └── metabase_dashboard.png
+│
+├── .github/workflows/
+│   └── pipeline.yml
+│
+├── docker-compose.yml
+├── requirements.txt
+├── Makefile
+└── README.md
+```
+
+---
+
+#  Setup Instructions
+
+## 1. Clone Repo
+
+```bash
+git clone https://github.com/Damas200/mini-data-platform.git
+cd mini-data-platform
+```
+
+---
+
+## 2. Start Platform
+
+```bash
+docker compose up -d
+```
+
+---
+
+## 3. Access Services
+
+| Service    | URL                                            |
+| ---------- | ---------------------------------------------- |
+| Airflow    | [http://localhost:8080](http://localhost:8080) |
+| MinIO      | [http://localhost:9001](http://localhost:9001) |
+| Metabase   | [http://localhost:3000](http://localhost:3000) |
+| PostgreSQL | localhost:5432                                 |
+
+---
+
+#  Run Pipeline
+
+1. Upload CSV → MinIO
+2. Open Airflow
+3. Trigger DAG:
+
+```
+sales_etl_pipeline
+```
+
+---
+
+#  Testing
+
+Run:
+
+```bash
+pytest
+```
+
+---
+
+#  CI/CD Pipeline
+
+Automated with GitHub Actions:
+
+* Install dependencies
+* Run tests
+* Validate pipeline
+
+File:
+
+```
+.github/workflows/pipeline.yml
+```
+
+---
+
+# Key Features
+
+* ✅ End-to-End Data Pipeline
+* ✅ Object Storage Integration
+* ✅ Automated ETL with Airflow
+* ✅ Data Warehouse Design
+* ✅ Dashboard Visualization
+* ✅ Dockerized Infrastructure
+* ✅ Unit Testing
+* ✅ CI/CD Pipeline
+
+---
+
+#  Author
+
+**Damas Niyonkuru**
+Data Engineer
+
+---
+
+#  What I Learned
+
+* Building scalable data pipelines
+* Orchestrating workflows with Airflow
+* Working with object storage (MinIO)
+* Designing data warehouses
+* Creating dashboards with Metabase
 
 ---
 
 #  Conclusion
 
-This project successfully implements a real-time customer heartbeat monitoring system from data simulation to visualization.
+This project demonstrates a **real-world data engineering workflow** from ingestion to visualization using modern open-source tools.
 
-The system demonstrates modern data engineering architecture and streaming analytics concepts suitable for production environments.
-
-
+It reflects best practices used in production systems and showcases skills required for a **Data Engineer role**.
 
